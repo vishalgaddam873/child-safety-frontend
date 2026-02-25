@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/context/SocketContext';
 import { api, Child, ScanLog } from '@/services/api';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { QRCodeSVG } from 'qrcode.react';
@@ -16,13 +17,15 @@ export default function ChildDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { token } = useAuth();
+  const { lastScan } = useSocket();
   const [child, setChild] = useState<Child | null>(null);
   const [logs, setLogs] = useState<ScanLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const prevLastScanId = useRef<string | null>(null);
 
-  useEffect(() => {
+  const fetchData = () => {
     if (!token || !id) return;
     Promise.all([
       api.children.get(token, id),
@@ -35,7 +38,25 @@ export default function ChildDetailPage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!token || !id) return;
+    setLoading(true);
+    fetchData();
   }, [token, id]);
+
+  // Refetch scan history when a new scan arrives for this child (real-time update)
+  useEffect(() => {
+    if (!lastScan || lastScan.childId !== id) return;
+    if (prevLastScanId.current === lastScan.log._id) return;
+    prevLastScanId.current = lastScan.log._id;
+    if (!token) return;
+    api.scan.history(token, id, { limit: 20 }).then((r) => {
+      setLogs(r.logs);
+      setTotal(r.total);
+    });
+  }, [lastScan, id, token]);
 
   const scanPageUrl =
     typeof window !== 'undefined'

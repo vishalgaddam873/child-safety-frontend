@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, Child } from '@/services/api';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -11,6 +12,7 @@ import { QrCode, MapPin, User } from 'lucide-react';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function DashboardPage() {
+  const pathname = usePathname();
   const { token } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,12 +20,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token) return;
+    setLoading(true);
     api.children
       .list(token)
       .then((r) => setChildren(r.children))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, pathname]);
 
   return (
     <ProtectedRoute>
